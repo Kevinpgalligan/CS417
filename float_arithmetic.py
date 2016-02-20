@@ -1,3 +1,5 @@
+MACHINE_EPSILON = UNIT_ROUNDOFF = 7/3 - 4/3 - 1
+
 def floating_point_cardinality (significand_digits, base, exp_max, exp_min):
     """Returns how many numbers are representable given floating pt params.
     
@@ -39,3 +41,6 @@ def decimal_fraction_to_base2_mantissa (f, precision=10):
         k += 1
         
     return bits
+
+def is_reasonable_error_tolerance (error_tolerance, correct_val):
+    return error_tolerance / abs(correct_val) >= UNIT_ROUNDOFF
