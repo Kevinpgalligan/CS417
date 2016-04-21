@@ -2,6 +2,13 @@ import numpy as np
 
 import utils
 
+class PivotNotFoundException (Exception):
+    def __init__ (self, pivot_row, matrix, *args, **kwargs):
+        Exception.__init__(self, "Couldn't find pivot at " +
+            "index ({0}, {0}) for the ".format(pivot_row) +
+            "below matrix:\n{}".format(matrix),
+            *args, **kwargs)
+
 def swap_rows (matrix, i, j):
     matrix[[i, j], :] = matrix[[j, i], :]
 
@@ -37,10 +44,10 @@ def to_upper_triangular_form (matrix, pivot_getter):
         pivot_row = pivot_getter(matrix, row)
         
         if pivot_row is None:
-            raise Exception("Failed to find pivot!")
+            raise PivotNotFoundException(row, matrix)
         elif pivot_row != row:
             # Have to swap rows to get pivot in place.
-            swap_row(matrix, row, pivot_row)
+            swap_rows(matrix, row, pivot_row)
         
         # Now zero the values below the pivot in that column.
         for i in range(row + 1, len(matrix)):
@@ -152,7 +159,7 @@ def lu_factorise (matrix, pivot_getter=get_scaled_partial_pivoting_row):
         pivot_row = pivot_getter(A, row)
         
         if pivot_row is None:
-            raise Exception("Failed to find pivot!")
+            raise PivotNotFoundException(row, matrix)
         elif pivot_row != row:
             swap_rows(A, row, pivot_row)
             swap_rows(permutation_matrix, row, pivot_row)
@@ -192,56 +199,68 @@ def get_upper_triangular_mod_n (aug_matrix, n):
     new_matrix = np.copy(aug_matrix)
     to_upper_triangular_mod_n(new_matrix, n)
     return new_matrix
+    
+def get_pivot_row_mod_n (aug_matrix, row, n):
+    for i in range(row, len(aug_matrix)):
+        inverse = utils.modinv(aug_matrix[i, row], n)
+        if aug_matrix[i, row] != 0 and inverse is not None:
+            return i, inverse
+    
+    return None, None
 
 def to_upper_triangular_mod_n (aug_matrix, n):
-    for row in range(len(aug_matrix)):
-        pivot_row = get_pivot_row(aug_matrix, row)
+    for row in range(len(aug_matrix[0]) - 1):
+        pivot_row, pivot_inv = get_pivot_row_mod_n(aug_matrix, row, n)
         
         if pivot_row is None:
-            raise Exception("Failed to find pivot!")
+            print(aug_matrix[40])
+            raise PivotNotFoundException(row, aug_matrix)
         elif pivot_row != row:
             swap_rows(aug_matrix, pivot_row, row)
         
         for i in range(row + 1, len(aug_matrix)):
-            scale_factor = (utils.modinv(aug_matrix[row, row], n) *
-                aug_matrix[i, row]) % n
-            
+            scale_factor = (pivot_inv * aug_matrix[i, row]) % n
             for j in range(row, len(aug_matrix[i])):
                 aug_matrix[i, j] = (aug_matrix[i, j] - scale_factor *
                     aug_matrix[row, j]) % n
 
-def back_substitution_mod_n (aug_matrix, n):
+def back_substitute_mod_n (aug_matrix, n):
     solns = []
 
-    for i in range(len(aug_matrix) - 1, -1, -1):
-        xi = ((aug_matrix[i, -1] - solns * aug_matrix[i, i+1:-1]) *
+    for i in range(len(aug_matrix[0]) - 2, -1, -1):
+        xi = ((aug_matrix[i, -1] - sum(solns * aug_matrix[i, i+1:-1])) *
             utils.modinv(aug_matrix[i, i], n)) % n
             
-        solns.append(xi)
+        solns.insert(0, xi)
     
     return solns
 
 def _ge_solve_mod_n (aug_matrix, pp):
-    up_t_form = get_upper_triangular_mod_n(aug_matrix, pp)
-    return back_substitution_mod_n(up_t_form, pp)
+    upper_t_form = get_upper_triangular_mod_n(aug_matrix, pp)
+    return back_substitute_mod_n(upper_t_form, pp)
 
-def ge_mod_n (aug_matrix, n):
+def ge_mod_n (aug_matrix, n, n_factorisation=None):
+    if n_factorisation is None:
+        n_factorisation = utils.factorise(n)
+
     solutions = []
 
-    prime_powers = [p ** e for p, e in utils.factorise(n)]
+    prime_powers = [p ** e for p, e in n_factorisation]
     
     solutions_for_prime_power = []
     for pp in prime_powers:
         solutions_for_prime_power.append(_ge_solve_mod_n(aug_matrix, pp))
     
-    solutions_for_variables = zip(*solutions_by_prime_power)
+    solutions_for_variables = zip(*solutions_for_prime_power)
     
     for solutions_for_variable in solutions_for_variables:
-        solutions.append(chinese_remainder_theorem(list(
+        solutions.append(utils.chinese_remainder_theorem(list(
             zip(solutions_for_variable, prime_powers))))
     
     return solutions
-    
+  
+solve = lu_method
+  
 def main ():
     # Important: array should have type = double.
     """

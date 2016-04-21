@@ -1,19 +1,28 @@
 import numpy as np
 
-from math import sqrt
+import lin_systems as ls
+import iterative_methods as iter
 
-def read_matrix (s, entry_separator=" ", row_separator=":", dtype=float):
-    """Given string, parses matrix."""
+from math import sqrt, log
+
+def parse_matrix (s, entry_separator=" ", row_separator=":", dtype=float):
     rows = s.split(row_separator)
     matrix = [[dtype(n) for n in row.split(entry_separator)] for row in rows]
     
     return np.array(matrix, dtype=dtype)
+
+def read_matrix_from_file (file_name, entry_separator=" ", row_separator=":",
+        dtype=float):
+    with open(file_name, 'r') as f:
+        s = f.read()
+        return parse_matrix(s, entry_separator, row_separator, dtype)
 
 def is_matrix (arr):
     """Checks that all rows in an array have the same # of entries."""
     if len(arr) == 0: return True
     
     row_length = len(arr[0])
+    
     i = 1
     while i < len(arr):
         if row_length != len(arr[i]):
@@ -24,8 +33,6 @@ def is_matrix (arr):
     return True
     
 def generate_hilbert_matrix (rows, columns=None):
-    # TBD: look up numpy method for appending column.
-    # (this doesn't generate an augmented matrix).
     if columns is None:
         columns = rows
         
@@ -114,3 +121,24 @@ def chinese_remainder_theorem (solution_pairs):
         x = (x + a * Mi * modinv(Mi, m)) % M
     
     return x
+
+def nth_prime_approximation (n):
+    return int(n * log(n))
+
+def approximate_num_possible_prime_divisors (x):
+    """Approximately how many primes <= sqrt(x)."""
+    sqrt_x = sqrt(x)
+    return int(sqrt_x / log(sqrt_x))
+    
+def is_linearly_independent_mod_n (row, rows, n):
+    if len(rows) == 0:
+        return True
+
+    matrix = np.r_[rows, [row]]
+    
+    try:
+        ls.to_upper_triangular_mod_n(matrix, n)
+    except ls.PivotNotFoundException:
+        return False
+    
+    return True
